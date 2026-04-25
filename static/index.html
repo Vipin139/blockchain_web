@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head >
+    <style>
+body{
+font-family: Arial, sans-serif;
+background:#f5f6fa;
+padding:20px;
+}
+
+h2{
+text-align:center;
+}
+
+.controls{
+margin-bottom:20px;
+padding:15px;
+background:white;
+border-radius:8px;
+box-shadow:0 2px 6px rgba(0,0,0,0.1);
+}
+
+.block{
+border:2px solid #444;
+padding:15px;
+margin:10px;
+width:260px;
+display:inline-block;
+background:white;
+border-radius:10px;
+vertical-align:top;
+box-shadow:0 3px 8px rgba(0,0,0,0.15);
+}
+
+.hash{
+font-size:11px;
+word-wrap:break-word;
+color:#555;
+}
+
+.arrow{
+font-size:25px;
+margin:10px;
+}
+
+ul{
+padding-left:15px;
+}
+
+li{
+font-size:14px;
+}
+
+#mempool{
+background:white;
+padding:10px;
+border-radius:8px;
+margin-top:10px;
+}
+
+#miningStatus{
+background:white;
+padding:10px;
+border-radius:8px;
+margin-top:10px;
+font-weight:bold;
+}
+
+</style>
+<title>Mini Blockchain Engine</title>
+</head>
+
+<body>
+
+    <div class="controls">
+        <h2>Mini Blockchain Engine</h2>
+
+<h3>Add Transaction</h3>
+
+<input id="sender" placeholder="Sender">
+<input id="receiver" placeholder="Receiver">
+<input id="amount" placeholder="Amount">
+
+<button onclick="sendTx()">Send</button>
+
+<h3>Mine Block</h3>
+<button onclick="mine()">Mine</button>
+
+<h3>Blockchain</h3>
+<button onclick="loadChain()">Show Chain</button>
+
+<h3>Balances</h3>
+<button onclick="loadBalances()">Show Balances</button>
+
+<h3> Mempool (Pending Transactions)</h3>
+<button onclick="loadMempool()">Show Mempool</button>
+
+<h3>Mining Status</h3>
+<div id = "miningStatus">Idle</div>
+
+<ul id = "mempool"></ul>
+
+<pre id="balances"></pre>
+
+    </div>
+
+<div id="blocks"></div>
+ 
+<script>
+
+const sender = document.getElementById("sender");
+const receiver = document.getElementById("receiver");
+const amount = document.getElementById("amount");
+
+async function sendTx() {
+
+let res = await fetch('/transfer',{
+method:'POST',
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({
+sender:sender.value,
+receiver:receiver.value,
+amount:Number(amount.value)
+})
+});
+
+let msg = await res.text();
+alert(msg);
+
+sender.value = "";
+receiver.value = "";
+amount.value = "";
+
+loadChain();
+loadMempool();
+
+}
+
+async function mine(){
+
+let status = document.getElementById("miningStatus");
+
+status.textContent = "Mining block...";
+
+let nonce = 0;
+
+let animation = setInterval(() => {
+
+status.textContent = "Trying nonce: " + nonce;
+nonce++;
+
+},100);
+
+await new Promise(resolve => setTimeout(resolve,2000));
+
+await fetch('/mine',{method:'POST'});
+
+clearInterval(animation);
+
+status.textContent = "Block mined successfully!";
+
+loadChain();
+loadMempool();
+
+}
+
+async function loadChain(){
+
+let res = await fetch('/chain');
+let chain = await res.json();
+
+let container = document.getElementById("blocks");
+container.innerHTML = "";
+
+chain.forEach((block, index) => {
+
+let div = document.createElement("div");
+div.className = "block";
+
+let txList = "";
+
+block.data.forEach(tx => {
+
+    txList += `
+    <li>
+        ${tx.sender} ➜ ${tx.receiver} : ${tx.amount}
+    </li>
+    `;    
+});
+
+div.innerHTML = `
+<h3>Block ${block.index}</h3>
+<p><b>Timestamp:</b> ${block.timestamp}</p>
+<p><b>Transactions:</b> ${block.data.length}</p>
+<ul> ${txList} </ul>
+<p class="hash"><b>Prev Hash:</b><br>${block.previous_hash}</p>
+<p class="hash"><b>Hash:</b><br>${block.hash}</p>
+`;
+
+container.appendChild(div);
+
+if(index < chain.length -1){
+
+    
+let arrow = document.createElement("span");
+arrow.className = "arrow";
+arrow.innerHTML = " ➜ ";
+container.appendChild(arrow);
+
+}
+
+if(block.index === 0){
+    div.style.borderColor = "#27ae60";
+}
+
+});
+
+}
+
+async function loadBalances(){
+
+    let res = await fetch('/balances');
+    let data = await res.json();
+
+    document.getElementById("balances").textContent = JSON.stringify(data,null,2);
+
+}
+
+async function loadMempool(){
+
+let res = await fetch('/mempool');
+let pool = await res.json();
+
+let list = document.getElementById("mempool");
+list.innerHTML = "";
+
+pool.forEach(tx => {
+
+let item = document.createElement("li");
+
+item.textContent =
+`${tx.sender} ➜ ${tx.receiver} : ${tx.amount}`;
+
+list.appendChild(item);
+
+});
+
+}
+
+</script>
+
+</body>
+</html>
