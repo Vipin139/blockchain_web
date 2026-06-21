@@ -1,22 +1,21 @@
 mod blockchain;
 
 use axum::{
-    routing::{get, post},
-    Router,
+    Json, Router,
     extract::State,
-    Json,
+    routing::{get, post},
 };
-use std::sync::{Arc, Mutex};
 use blockchain::Blockchain;
 use serde::Deserialize;
-use tower_http::services::ServeDir;
 use std::collections::HashMap;
+use std::env;
+use std::sync::{Arc, Mutex};
+use tower_http::services::ServeDir;
 
 type AppState = Arc<Mutex<Blockchain>>;
 
 #[tokio::main]
 async fn main() {
-
     let blockchain = Arc::new(Mutex::new(Blockchain::new()));
 
     let app = Router::new()
@@ -30,24 +29,26 @@ async fn main() {
         .nest_service("/", ServeDir::new("static"))
         .with_state(blockchain);
 
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:3000")
-        .await
-        .unwrap();
+    let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
 
-    println!("Server running at http://localhost:3000");
+    let addr = format!("0.0.0.0:{}", port);
+
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
+
+    println!("Server running on {}", addr);
 
     axum::serve(listener, app).await.unwrap();
 }
 
-async fn get_chain(State(state): State<AppState>) -> Json<Vec<blockchain::Block<Vec<blockchain::Transaction>>>> {
-
+async fn get_chain(
+    State(state): State<AppState>,
+) -> Json<Vec<blockchain::Block<Vec<blockchain::Transaction>>>> {
     let bc = state.lock().unwrap();
 
     Json(bc.chain.clone())
 }
 
 async fn mine_block(State(state): State<AppState>) -> String {
-
     let mut bc = state.lock().unwrap();
 
     bc.mine_pending_transaction();
@@ -56,7 +57,6 @@ async fn mine_block(State(state): State<AppState>) -> String {
 }
 
 async fn validate_chain(State(state): State<AppState>) -> String {
-
     let bc = state.lock().unwrap();
 
     format!("Chain valid: {}", bc.is_chain_valid())
@@ -69,11 +69,7 @@ struct TransferRequest {
     amount: u64,
 }
 
-async fn transfer(
-    State(state): State<AppState>,
-    Json(req): Json<TransferRequest>,
-) -> String {
-
+async fn transfer(State(state): State<AppState>, Json(req): Json<TransferRequest>) -> String {
     println!("Transfer request received!");
 
     let mut bc = state.lock().unwrap();
@@ -84,18 +80,14 @@ async fn transfer(
     }
 }
 
-async fn get_balances(State(state): State<AppState>) -> Json<HashMap<String,u64>> {
-
+async fn get_balances(State(state): State<AppState>) -> Json<HashMap<String, u64>> {
     let bc = state.lock().unwrap();
 
     Json(bc.balances.clone())
 }
 
 async fn get_mempool(State(state): State<AppState>) -> Json<Vec<blockchain::Transaction>> {
-
     let bc = state.lock().unwrap();
     let pool = bc.mempool.lock().unwrap();
     Json(pool.clone())
 }
-
-
